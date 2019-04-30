@@ -15,7 +15,7 @@ import (
 	"time"
 
 	linereader "github.com/mitchellh/go-linereader"
-	"github.com/radekg/terraform-provisioner-ansible/types"
+	"github.com/ivandeex/terraform-provisioner-ansible/types"
 
 	"github.com/hashicorp/terraform/communicator"
 	"github.com/hashicorp/terraform/communicator/remote"

@@ -4,7 +4,9 @@ CURRENT_DIR=$(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
 CI_ANSIBLE_VERSION=2.6.5
 CI_GOLANG_VERSION=1.11.6
-CI_PROJECT_PATH=/go/src/github.com/radekg/terraform-provisioner-ansible
+CI_PROJECT_PATH=/go/src/github.com/ivandeex/terraform-provisioner-ansible
+
+build: build-linux
 
 .PHONY: plugins-dir
 plugins-dir:
@@ -35,7 +37,7 @@ ci-build-image:
 ci-run-tests:
 	docker run --rm \
 		-v $(shell pwd):${CI_PROJECT_PATH} \
-		-ti radekg/terraform-provisioner-ansible-ci:ansible-${CI_ANSIBLE_VERSION}-go-${CI_GOLANG_VERSION} \
+		-ti ivandeex/terraform-provisioner-ansible-ci:ansible-${CI_ANSIBLE_VERSION}-go-${CI_GOLANG_VERSION} \
 		/bin/sh -c 'cd ${CI_PROJECT_PATH} && make lint && make test-verbose'
 
 .PHONY: build-linux
@@ -43,12 +45,14 @@ build-linux: check-golang-version plugins-dir
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./${BINARY_NAME}-linux
 	cp ./${BINARY_NAME}-linux ${PLUGINS_DIR}/${BINARY_NAME}
 	rm ./${BINARY_NAME}-linux
+	mv ${PLUGINS_DIR}/${BINARY_NAME} ${PLUGINS_DIR}/${BINARY_NAME}_${BUILD_TAG}
 
 .PHONY: build-darwin
 build-darwin: check-golang-version plugins-dir
 	CGO_ENABLED=0 GOOS=darwin installsuffix=cgo go build -o ./${BINARY_NAME}-darwin
 	cp ./${BINARY_NAME}-darwin ${PLUGINS_DIR}/${BINARY_NAME}
 	rm ./${BINARY_NAME}-darwin
+	mv ${PLUGINS_DIR}/${BINARY_NAME} ${PLUGINS_DIR}/${BINARY_NAME}_${BUILD_TAG}
 
 # this rule must not be used directly
 # this rule is invoked by the bin/build-release-binaries.sh script inside of a docker container where the build happens

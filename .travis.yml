@@ -1,0 +1,18 @@
+language: go
+
+go:
+  - "1.11"
+
+install:
+  - go get golang.org/x/lint/golint
+  - go get github.com/mitchellh/gox
+  - go get github.com/tcnksm/ghr
+
+script:
+  - make build
+  - make lint
+  - make test
+
+after_success:
+  - gox -output "dist/{{.Dir}}-{{.OS}}-{{.Arch}}_${BUILD_TAG}" -osarch "linux/amd64 windows/amd64" -verbose
+  - ghr -replace ${BUILD_TAG} dist/

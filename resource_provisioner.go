@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/radekg/terraform-provisioner-ansible/mode"
-	"github.com/radekg/terraform-provisioner-ansible/types"
+	"github.com/ivandeex/terraform-provisioner-ansible/mode"
+	"github.com/ivandeex/terraform-provisioner-ansible/types"
 
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/terraform"

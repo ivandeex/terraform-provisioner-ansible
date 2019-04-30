@@ -11,8 +11,8 @@ import (
 
 	"github.com/hashicorp/terraform/helper/schema"
 	"github.com/hashicorp/terraform/terraform"
-	"github.com/radekg/terraform-provisioner-ansible/test"
-	"github.com/radekg/terraform-provisioner-ansible/types"
+	"github.com/ivandeex/terraform-provisioner-ansible/test"
+	"github.com/ivandeex/terraform-provisioner-ansible/types"
 )
 
 func TestLocalInventoryTemplateGeneratesWithAlias(t *testing.T) {
