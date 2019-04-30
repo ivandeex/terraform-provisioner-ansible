@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/terraform/helper/schema"
@@ -32,6 +33,9 @@ type Play struct {
 	overrideInventoryFile     string
 	overrideVaultID           []string
 	overrideVaultPasswordFile string
+	extraArgs                 []string
+	extraEnv                  map[string]interface{}
+	hostVars                  map[string]interface{}
 }
 
 const (
@@ -62,6 +66,9 @@ const (
 	playAttributeVaultID           = "vault_id"
 	playAttributeVaultPasswordFile = "vault_password_file"
 	playAttributeVerbose           = "verbose"
+	playAttributeExtraArgs         = "extra_args"
+	playAttributeExtraEnv          = "extra_env"
+	playAttributeHostVars          = "host_vars"
 )
 
 // NewPlaySchema returns a new play schema.
@@ -147,6 +154,21 @@ func NewPlaySchema() *schema.Schema {
 					Type:     schema.TypeBool,
 					Optional: true,
 				},
+				playAttributeExtraArgs: &schema.Schema{
+					Type:     schema.TypeList,
+					Elem:     &schema.Schema{Type: schema.TypeString},
+					Optional: true,
+				},
+				playAttributeExtraEnv: &schema.Schema{
+					Type:     schema.TypeMap,
+					Optional: true,
+					Computed: true,
+				},
+				playAttributeHostVars: &schema.Schema{
+					Type:     schema.TypeMap,
+					Optional: true,
+					Computed: true,
+				},
 			},
 		},
 	}
@@ -175,6 +197,8 @@ func NewPlayFromMapInterface(vals map[string]interface{}, defaults *Defaults) *P
 		vaultID:           listOfInterfaceToListOfString(vals[playAttributeVaultID].([]interface{})),
 		vaultPasswordFile: vals[playAttributeVaultPasswordFile].(string),
 		verbose:           vals[playAttributeVerbose].(bool),
+		extraEnv:          mapFromTypeMap(vals[playAttributeExtraEnv]),
+		hostVars:          mapFromTypeMap(vals[playAttributeHostVars]),
 	}
 
 	emptySet := "*Set(map[string]interface {}(nil))"
@@ -190,6 +214,10 @@ func NewPlayFromMapInterface(vals map[string]interface{}, defaults *Defaults) *P
 	}
 	if val, ok := vals[playAttributeGroups]; ok {
 		v.groups = listOfInterfaceToListOfString(val.([]interface{}))
+	}
+
+	if val, ok := vals[playAttributeExtraArgs]; ok {
+		v.extraArgs = listOfInterfaceToListOfString(val.([]interface{}))
 	}
 
 	return v
@@ -345,6 +373,47 @@ func (v *Play) Verbose() bool {
 	return v.verbose
 }
 
+// ExtraArgs
+func (v *Play) ExtraArgs() []string {
+	if len(v.extraArgs) > 0 {
+		return v.extraArgs
+	}
+	return make([]string, 0)
+}
+
+// ExtraEnv
+func (v *Play) ExtraEnv() map[string]interface{} {
+	if len(v.extraEnv) > 0 {
+		return v.extraEnv
+	}
+	return make(map[string]interface{})
+}
+
+// HostVars
+func (v *Play) HostVars() map[string]interface{} {
+	if len(v.hostVars) > 0 {
+		return v.hostVars
+	}
+	return make(map[string]interface{})
+}
+
+// InventoryHostVars
+func (v *Play) InventoryHostVars() string {
+	vars := v.hostVars
+	tokens := make([]string, 0)
+	if len(vars) > 0 {
+		namesSorted := make([]string, 0)
+		for name, _ := range vars {
+			namesSorted = append(namesSorted, name)
+		}
+		sort.Strings(namesSorted)
+		for _, name := range namesSorted {
+			tokens = append(tokens, fmt.Sprintf("%s=%+v", name, vars[name]))
+		}
+	}
+	return strings.Join(tokens, " ")
+}
+
 // SetOverrideInventoryFile is used by the provisioner in the following cases:
 // - remote provisioner not given an inventory_file, a generated temporary file used
 // - local mode always writes a temporary inventory file, such file has to be removed after provisioning
@@ -385,6 +454,19 @@ func (v *Play) ToCommand(ansibleArgs LocalModeAnsibleArgs) (string, error) {
 		command = fmt.Sprintf("%s %s=\"%s\"", command, ansibleEnvVarRemoteTmp, envVarVal)
 	}
 
+	// extra env:
+	extra_env := v.ExtraEnv()
+	if len(extra_env) > 0 {
+		namesSorted := make([]string, 0)
+		for name, _ := range extra_env {
+			namesSorted = append(namesSorted, name)
+		}
+		sort.Strings(namesSorted)
+		for _, name := range namesSorted {
+			command = fmt.Sprintf("%s %s=%+v", command, name, extra_env[name])
+		}
+	}
+
 	// entity to call:
 	switch entity := v.Entity().(type) {
 	case *Playbook:
@@ -400,6 +482,13 @@ func (v *Play) ToCommand(ansibleArgs LocalModeAnsibleArgs) (string, error) {
 		}
 
 		command = fmt.Sprintf("%s ansible-playbook %s", command, entity.FilePath())
+
+		// extra args (playbook):
+		if len(v.ExtraArgs()) > 0 {
+			for _, arg := range v.ExtraArgs() {
+				command = fmt.Sprintf("%s %s", command, arg)
+			}
+		}
 
 		// force handlers:
 		if entity.ForceHandlers() {
@@ -424,6 +513,13 @@ func (v *Play) ToCommand(ansibleArgs LocalModeAnsibleArgs) (string, error) {
 			hostPattern = ansibleModuleDefaultHostPattern
 		}
 		command = fmt.Sprintf("%s ansible %s --module-name='%s'", command, hostPattern, entity.module)
+
+		// extra args (module):
+		if len(v.ExtraArgs()) > 0 {
+			for _, arg := range v.ExtraArgs() {
+				command = fmt.Sprintf("%s %s", command, arg)
+			}
+		}
 
 		if entity.Background() > 0 {
 			command = fmt.Sprintf("%s --background=%d", command, entity.Background())
