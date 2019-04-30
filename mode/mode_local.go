@@ -25,6 +25,7 @@ type LocalMode struct {
 type inventoryTemplateLocalDataHost struct {
 	Alias       string
 	AnsibleHost string
+	HostVars    string
 }
 
 type inventoryTemplateLocalData struct {
@@ -38,6 +39,9 @@ const inventoryTemplateLocal = `{{$top := . -}}
 {{if ne .AnsibleHost "" -}}
 {{" "}}ansible_host={{.AnsibleHost -}}
 {{end -}}
+{{if ne .HostVars "" -}}
+{{" "}}{{.HostVars -}}
+{{end -}}
 {{printf "\n" -}}
 {{end}}
 
@@ -47,6 +51,9 @@ const inventoryTemplateLocal = `{{$top := . -}}
 {{.Alias -}}
 {{if ne .AnsibleHost "" -}}
 {{" "}}ansible_host={{.AnsibleHost -}}
+{{end -}}
+{{if ne .HostVars "" -}}
+{{" "}}{{.HostVars -}}
 {{end -}}
 {{printf "\n" -}}
 {{end}}
@@ -335,6 +342,7 @@ func (v *LocalMode) writeInventory(play *types.Play) (string, error) {
 					templateData.Hosts = append(templateData.Hosts, inventoryTemplateLocalDataHost{
 						Alias:       playHosts[0],
 						AnsibleHost: v.connInfo.Host,
+						HostVars:    play.InventoryHostVars(),
 					})
 				} else {
 					templateData.Hosts = append(templateData.Hosts, inventoryTemplateLocalDataHost{
