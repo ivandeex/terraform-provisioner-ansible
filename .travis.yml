@@ -1,7 +1,7 @@
 language: go
 
 go:
-  - "1.11"
+  - "1.12"
 
 install:
   - go get golang.org/x/lint/golint
@@ -15,4 +15,5 @@ script:
 
 after_success:
   - gox -output "dist/{{.Dir}}-{{.OS}}-{{.Arch}}_${BUILD_TAG}" -osarch "linux/amd64 windows/amd64" -verbose
+  - date > dist/timestamp.txt
   - ghr -replace ${BUILD_TAG} dist/
