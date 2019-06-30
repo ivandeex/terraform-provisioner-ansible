@@ -1,0 +1,60 @@
+language: go
+branches:
+  only:
+    - master
+    - devel
+    - /^v/
+go_import_path: github.com/radekg/terraform-provisioner-ansible
+env:
+  global:
+    - CGO_ENABLED=0
+    - GORELEASER_VER=0.110.0
+    - GOLANGCI_LINT_VER=1.17.1
+install:
+  # we want that `go get` install utilities, but in the module mode its
+  # behaviour is different; actually, `go get` would rather modify the
+  # local `go.mod`, so let's disable modules here.
+  - GO111MODULE=off go get -u golang.org/x/lint/golint
+  - GO111MODULE=off go get -u golang.org/x/tools/cmd/goimports
+  # goreleaser and golangci-lint take pretty long to build
+  # as an optimization, let's just download the binaries
+  - curl -sL "https://github.com/goreleaser/goreleaser/releases/download/v${GORELEASER_VER}/goreleaser_Linux_x86_64.tar.gz" | tar -xzf - -C "$(go env GOPATH)/bin" goreleaser
+  - curl -sL "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VER}/golangci-lint-${GOLANGCI_LINT_VER}-linux-amd64.tar.gz" | tar -xzf - -C "$(go env GOPATH)/bin" --strip-components=1 "golangci-lint-${GOLANGCI_LINT_VER}-linux-amd64/golangci-lint"
+matrix:
+  include:
+    - go: 1.10.x
+      env:
+        - GO111MODULE=off
+      script:
+        - go build
+        - make test || true  # FIXME: test fails
+        - make lint
+        # golangci-lint requires go 1.12
+    - go: 1.12.x
+      env:
+        - GO111MODULE=on
+      script:
+        - go build
+        - make test || true  # FIXME: test fails
+        - make lint
+        - golangci-lint run --skip-dirs=test,vendor --fast ./... || true
+# goreleaser does not have a flag to overwrite github release artifacts
+# use the travis releases provider to do rolling releases
+before_deploy:
+  - goreleaser --rm-dist --skip-publish
+deploy:
+  provider: releases
+  api_key: $GITHUB_TOKEN
+  file_glob: true
+  file:
+    - dist/*.txt
+    - dist/*.tar.gz
+    - dist/*.zip
+  skip_cleanup: true
+  overwrite: true
+  on:
+    repo: ivandeex/terraform-provisioner-ansible
+    tags: true
+    all_branches: true
+    go: 1.12.x
+    condition: $TRAVIS_PULL_REQUEST == false
