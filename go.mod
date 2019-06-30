@@ -3,7 +3,7 @@ module github.com/radekg/terraform-provisioner-ansible
 go 1.12
 
 require (
-	github.com/hashicorp/terraform v0.12.0
+	github.com/hashicorp/terraform v0.12.3
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/go-linereader v0.0.0-20190213213312-1b945b3263eb
