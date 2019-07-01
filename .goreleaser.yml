@@ -1,0 +1,27 @@
+env:
+  - GO111MODULE=on
+  - CGO_ENABLED=0
+builds:
+  - #
+    id: build
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+    binary: "{{ .ProjectName }}_v{{ .Version }}"
+archives:
+  - #
+    id: default
+    builds:
+      - build
+    name_template: "{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format: zip
+    files:
+      # add only the binary, skipping README and LICENSE
+      - none*
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
