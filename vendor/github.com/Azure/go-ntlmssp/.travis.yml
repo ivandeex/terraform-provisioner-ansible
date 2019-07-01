@@ -5,10 +5,7 @@ language: go
 before_script:
   - go get -u github.com/golang/lint/golint
 
-go:
-  - 1.10.x
-  - master
-
+go: 1.6
 script:
   - test -z "$(gofmt -s -l . | tee /dev/stderr)"
   - test -z "$(golint ./... |  tee /dev/stderr)"
