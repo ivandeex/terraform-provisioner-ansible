@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/radekg/terraform-provisioner-ansible/dbg"
 	"github.com/radekg/terraform-provisioner-ansible/mode"
 	"github.com/radekg/terraform-provisioner-ansible/types"
 
@@ -33,37 +32,7 @@ func Provisioner() terraform.ResourceProvisioner {
 	}
 }
 
-// This function should be removed before release
-func investigateResourceTypes(c *terraform.ResourceConfig) {
-	desc := func(p string) {
-		isset := c.IsSet(p)
-		val, okval := c.Get(p)
-		raw, okraw := c.Get(p)
-		num, oknum := c.Get(p + ".#")
-		comp := c.IsComputed(p)
-		dbg.Log("%q (num=[%d] comp=[%v] type=[%T] raw=[%T] ok=[set=%v val=%v raw=%v num=%v])\n<val>\t%#v\n<raw>\t%#v",
-				p, num, comp, val, raw, isset, okval, okraw, oknum, val, raw)
-	}
-
-	desc("plays")
-	desc("plays.0")
-	desc("plays.0.extra_args")
-	desc("plays.0.extra_args.0")
-	desc("plays.0.extra_args.1")
-	desc("plays.0.extra_args.2")
-	desc("plays.0.module")
-	desc("plays.0.playbook")
-	desc("plays.0.playbook.0")
-	desc("plays.0.playbook.0.file_path")
-	desc("plays.0.playbook.0.roles_path")
-	desc("plays.0.playbook.0.roles_path.0")
-	desc("plays.0.playbook.0.roles_path.1")
-	desc("plays.0.playbook.0.roles_path.2")
-	desc("plays.0.playbook.0.roles_path.3")
-}
-
 func validateFn(c *terraform.ResourceConfig) (ws []string, es []error) {
-	investigateResourceTypes(c)
 
 	defer func() {
 		if r := recover(); r != nil {
