@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 
 	"github.com/radekg/terraform-provisioner-ansible/mode"
 	"github.com/radekg/terraform-provisioner-ansible/types"
@@ -40,51 +42,96 @@ func validateFn(c *terraform.ResourceConfig) (ws []string, es []error) {
 		}
 	}()
 
+	if !c.IsSet("plays") {
+		ws = append(ws, "nothing to play")
+		return
+	}
+
+	value, _ := c.Get("plays")
+	_, isArrayOfMaps := value.([]map[string]interface{}) // in Terraform 0.11.x types are concrete
+	_, isArrayOfIfs := value.([]interface{})             // in Terraform 0.12+ types are wrapped in interface{}
+	value, _ = c.Get("plays.#")
+	numPlays, ok := value.(int)
+	if (!isArrayOfIfs && !isArrayOfMaps) || value == nil || !ok {
+		es = append(es, fmt.Errorf("`plays` must be an array isarr=%v/%v ok=%v val=%v num=%d", isArrayOfIfs, isArrayOfMaps, ok, value, numPlays))
+		return
+	}
+
 	validPlaysCount := 0
+	for playNo := 0; playNo < numPlays; playNo++ {
+		playLoc := fmt.Sprintf("plays.%d", playNo)
 
-	if plays, hasPlays := c.Get("plays"); hasPlays {
-		for _, vPlay := range plays.([]map[string]interface{}) {
+		playHasPlaybook := c.IsSet(playLoc + ".playbook")
+		playHasModule := c.IsSet(playLoc + ".module")
+		if playHasPlaybook && playHasModule {
+			es = append(es, errors.New("playbook and module can't be used together"))
+			continue
+		}
+		if !playHasPlaybook && !playHasModule {
+			es = append(es, errors.New("playbook or module must be set"))
+			continue
+		}
+		if playHasModule {
+			validPlaysCount++
+			continue
+		}
 
-			currentErrorCount := len(es)
+		value, _ := c.Get(playLoc + ".playbook")
+		_, isArrayOfMaps = value.([]map[string]interface{}) // in Terraform 0.11.x types are concrete
+		_, isArrayOfIfs = value.([]interface{})             // in Terraform 0.12+ types are wrapped in interface{}
+		value, _ = c.Get(playLoc + ".playbook.#")
+		numPlaybooks, ok := value.(int)
+		if (!isArrayOfIfs && !isArrayOfMaps) || value == nil || !ok {
+			es = append(es, errors.New("`plays.playbook` must be an array"))
+			continue
+		}
 
-			vPlaybook, playHasPlaybook := vPlay["playbook"]
-			_, playHasModule := vPlay["module"]
+		playIsOK := true
+		for playbookNo := 0; playbookNo < numPlaybooks; playbookNo++ {
+			playbookLoc := fmt.Sprintf("%s.playbook.%d", playLoc, playbookNo)
+			if !c.IsSet(playbookLoc + ".roles_path") {
+				continue
+			}
 
-			if playHasPlaybook && playHasModule {
-				es = append(es, fmt.Errorf("playbook and module can't be used together"))
-			} else if !playHasPlaybook && !playHasModule {
-				es = append(es, fmt.Errorf("playbook or module must be set"))
-			} else {
+			// TODO investigate this:
+			// If a value in roles_path is computed, an attempt to query the
+			// array length using the `*.roles_path.#` returns a UUID string.
+			// As a temporary workaround, lets use len() of the castedArray.
+			value, _ := c.Get(playbookLoc + ".roles_path")
+			rolesPathAsArray, rolesPathArrayIsOK := value.([]interface{})
+			if !rolesPathArrayIsOK {
+				es = append(es, errors.New("`plays.playbook.roles_path` must be an array"))
+				playIsOK = false
+				continue
+			}
 
-				if playHasPlaybook {
-					vPlaybookTyped := vPlaybook.([]map[string]interface{})
-					rolesPath, hasRolesPath := vPlaybookTyped[0]["roles_path"]
-					if hasRolesPath {
-						for _, singlePath := range rolesPath.([]interface{}) {
-							vws, ves := types.VfPathDirectory(singlePath, "roles_path")
-
-							for _, w := range vws {
-								ws = append(ws, w)
-							}
-							for _, e := range ves {
-								es = append(es, e)
-							}
-						}
-					}
+			for pathNo := 0; pathNo < len(rolesPathAsArray); pathNo++ {
+				// Terraform 0.11.x attempts to interpolate everything ASAP, but
+				// Terraform 0.12+ will lazily return an UUID for computed values.
+				if c.IsComputed(fmt.Sprintf("%s.roles_path.%d", playbookLoc, pathNo)) {
+					//ws = append(ws, "Cannot validate roles_path as it is computed")
+					log.Printf("[WARN] Cannot validate roles_path as it is computed")
+					continue
 				}
-
-			}
-
-			if currentErrorCount == len(es) {
-				validPlaysCount++
+				if value, ok = rolesPathAsArray[pathNo].(string); !ok {
+					es = append(es, errors.New("`plays.playbook.roles_path` must be an array of strings"))
+					playIsOK = false
+					continue
+				}
+				wsDir, esDir := types.VfPathDirectory(value, "roles_path")
+				ws = append(ws, wsDir...)
+				es = append(es, esDir...)
+				if esDir != nil {
+					playIsOK = false
+				}
 			}
 		}
-
-		if validPlaysCount == 0 {
-			ws = append(ws, "nothing to play")
+		if playIsOK {
+			validPlaysCount++
 		}
+	}
 
-	} else {
+	if validPlaysCount == 0 {
 		ws = append(ws, "nothing to play")
 	}
 
